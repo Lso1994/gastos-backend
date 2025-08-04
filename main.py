@@ -1,20 +1,21 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import openai
+from openai import AsyncOpenAI
 import os
 
 app = FastAPI()
 
-# Habilitar CORS
+# CORS: permite que tu API reciba peticiones desde apps o navegadores
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Puedes restringirlo por seguridad
+    allow_origins=["*"],  # Reemplaza con tus dominios si quieres limitar
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Inicializar cliente OpenAI
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 CATEGORIES = ["Restauración", "Transporte", "Compras", "Suscripciones", "Otros"]
 
@@ -28,11 +29,16 @@ async def categorize_transaction(merchant: str, amount: float):
     Categorías disponibles: {', '.join(CATEGORIES)}.
     Devuelve solo una categoría exacta.
     """
-    response = await openai.ChatCompletion.acreate(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content.strip()
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en clasificación: {str(e)}")
 
 @app.post("/transactions")
 async def create_transaction(request: Request):
@@ -45,15 +51,13 @@ async def create_transaction(request: Request):
             raise HTTPException(status_code=400, detail="Datos inválidos")
 
         category = await categorize_transaction(merchant, amount)
+
         return {
             "status": "ok",
             "category": category,
             "merchant": merchant,
             "amount": amount
         }
-
-    except openai.error.OpenAIError as e:
-        raise HTTPException(status_code=500, detail=f"OpenAI error: {str(e)}")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
