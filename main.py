@@ -1,3 +1,15 @@
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Habilitar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Puedes restringirlo a ["https://tudominio.com"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 from fastapi import FastAPI, Request, Header, HTTPException
 import openai
 import httpx
